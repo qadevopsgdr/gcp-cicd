@@ -18,23 +18,27 @@ jobs:
   security-check:
     runs-on: self-hosted
     needs: compile
+
     steps:
     - uses: actions/checkout@v4
-    - name: Install Trivy
+
+    - name: Install Trivy (Fast Binary Method)
       run: |
-        sudo apt-get install wget gnupg -y
-        wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
-        echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | sudo tee /etc/apt/sources.list.d/trivy.list
-        sudo apt update
-        sudo apt install -y trivy
+        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
+        sudo mv trivy /usr/local/bin/
+
     - name: Trivy File System Scan
       run: trivy fs --format table -o trivy-fs-report.txt .
+
     - name: Install Gitleaks
       run: |
         curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64 -o gitleaks
-        chmod +x gitleaks && sudo mv gitleaks /usr/local/bin/
-    - name: Gitleaks Secret Scan
-      run: gitleaks detect --source . --report-format json --report-path gitleaks-report.json
+        chmod +x gitleaks
+        sudo mv gitleaks /usr/local/bin/
+
+    - name: Run Gitleaks Scan
+      run: gitleaks detect --source . --report-path=gitleaks-report.json --format=json
+
 
   test:
     runs-on: self-hosted
