@@ -1,5 +1,11 @@
-"scripts": {
-  "start": "node app.js",
-  "test": "jest"
+{
+  "name": "nodejs-cicd-project",
+  "version": "1.0.0",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "test": "jest"
+  },
+  "dependencies": {},
+  "devDependencies": {}
 }
-
