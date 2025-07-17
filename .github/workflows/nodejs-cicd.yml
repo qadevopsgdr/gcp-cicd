@@ -1,0 +1,98 @@
+name: CICD Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  compile:
+    runs-on: self-hosted
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+    - name: Install Dependencies
+      run: npm install
+
+  security-check:
+    runs-on: self-hosted
+    needs: compile
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Trivy
+      run: |
+        sudo apt-get install wget gnupg -y
+        wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+        echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | sudo tee /etc/apt/sources.list.d/trivy.list
+        sudo apt update
+        sudo apt install -y trivy
+    - name: Trivy File System Scan
+      run: trivy fs --format table -o trivy-fs-report.txt .
+    - name: Install Gitleaks
+      run: |
+        curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64 -o gitleaks
+        chmod +x gitleaks && sudo mv gitleaks /usr/local/bin/
+    - name: Gitleaks Secret Scan
+      run: gitleaks detect --source . --report-format json --report-path gitleaks-report.json
+
+  test:
+    runs-on: self-hosted
+    needs: security-check
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+    - name: Install Dependencies
+      run: npm install
+    - name: Run Unit Tests
+      run: npm test
+
+  sonar_scan:
+    runs-on: self-hosted
+    needs: test
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: SonarQube Scan
+      uses: sonarsource/sonarqube-scan-action@v1.2.0
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+    - name: SonarQube Quality Gate
+      uses: sonarsource/sonarqube-quality-gate-action@master
+      with:
+        pollingTimeoutSec: 600
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
+
+  docker_build_and_push:
+    runs-on: self-hosted
+    needs: sonar_scan
+    steps:
+    - uses: actions/checkout@v4
+    - name: Login to DockerHub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ vars.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+    - name: Build Docker Image
+      run: docker build -t ${{ vars.DOCKERHUB_USERNAME }}/nodejs-cicd-app:latest .
+    - name: Trivy Image Scan
+      run: trivy image --format table --output trivy-image-report.txt ${{ vars.DOCKERHUB_USERNAME }}/nodejs-cicd-app:latest
+    - name: Push Docker Image
+      run: docker push ${{ vars.DOCKERHUB_USERNAME }}/nodejs-cicd-app:latest
+
+  deploy_to_local:
+    runs-on: self-hosted
+    needs: docker_build_and_push
+    steps:
+    - name: Stop Existing Container (if any)
+      run: docker stop nodeapp || true && docker rm nodeapp || true
+    - name: Pull Latest Docker Image
+      run: docker pull ${{ vars.DOCKERHUB_USERNAME }}/nodejs-cicd-app:latest
+    - name: Run New Container
+      run: docker run -d -p 3000:3000 --name nodeapp ${{ vars.DOCKERHUB_USERNAME }}/nodejs-cicd-app:latest
