@@ -14,31 +14,29 @@ jobs:
         node-version: '18'
     - name: Install Dependencies
       run: npm install
-
   security-check:
     runs-on: self-hosted
     needs: compile
 
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-    - name: Install Trivy (Fast Binary Method)
+    - name: Trivy FS Scan (via Docker)
       run: |
-        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
-        sudo mv trivy /usr/local/bin/
+        docker run --rm \
+          -v $(pwd):/project \
+          aquasec/trivy fs /project
 
-    - name: Trivy File System Scan
-      run: trivy fs --format table -o trivy-fs-report.txt .
+    - name: Gitleaks Installation
+      run: sudo apt-get install -y gitleaks
 
-    - name: Install Gitleaks
+    - name: Gitleaks Code Scan
       run: |
-        curl -sSL https://github.com/gitleaks/gitleaks/releases/latest/download/gitleaks-linux-amd64 -o gitleaks
-        chmod +x gitleaks
-        sudo mv gitleaks /usr/local/bin/
-
-    - name: Run Gitleaks Scan
-      run: gitleaks detect --source . --report-path=gitleaks-report.json --format=json
-
+        gitleaks detect \
+          --source . \
+          --report-format json \
+          --report-path gitleaks-report.json
 
   test:
     runs-on: self-hosted
