@@ -14,10 +14,10 @@ jobs:
         node-version: '18'
     - name: Install Dependencies
       run: npm install
+
   security-check:
     runs-on: self-hosted
     needs: compile
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -28,15 +28,14 @@ jobs:
           -v $(pwd):/project \
           aquasec/trivy fs /project
 
-    - name: Gitleaks Installation
-      run: sudo apt-get install -y gitleaks
-
-    - name: Gitleaks Code Scan
+    - name: Gitleaks Code Scan (via Docker)
       run: |
-        gitleaks detect \
-          --source . \
-          --report-format json \
-          --report-path gitleaks-report.json
+        docker run --rm \
+          -v $(pwd):/app \
+          zricethezav/gitleaks:latest detect \
+          --source=/app \
+          --report-format=json \
+          --report-path=/app/gitleaks-report.json
 
   test:
     runs-on: self-hosted
@@ -83,8 +82,14 @@ jobs:
         password: ${{ secrets.DOCKERHUB_TOKEN }}
     - name: Build Docker Image
       run: docker build -t ${{ vars.DOCKERHUB_USERNAME }}/nodejs-cicd-app:latest .
-    - name: Trivy Image Scan
-      run: trivy image --format table --output trivy-image-report.txt ${{ vars.DOCKERHUB_USERNAME }}/nodejs-cicd-app:latest
+
+    - name: Trivy Image Scan (via Docker)
+      run: |
+        docker run --rm \
+          -v /var/run/docker.sock:/var/run/docker.sock \
+          aquasec/trivy image \
+          ${{ vars.DOCKERHUB_USERNAME }}/nodejs-cicd-app:latest
+
     - name: Push Docker Image
       run: docker push ${{ vars.DOCKERHUB_USERNAME }}/nodejs-cicd-app:latest
 
