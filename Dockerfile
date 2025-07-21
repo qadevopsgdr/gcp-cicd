@@ -1,6 +1,25 @@
+# Base Image
 FROM node:18-alpine
+
+# Set working directory
 WORKDIR /app
-COPY . .
+
+# Copy dependencies
+COPY package*.json ./
+
+# Install dependencies
 RUN npm install
+
+# Copy app source
+COPY . .
+
+# Expose app port
 EXPOSE 3000
+
+# Health check — optional endpoint
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD curl -f http://192.168.247.130:3000/ || exit 1
+
+# Start the app
 CMD ["npm", "start"]
+
