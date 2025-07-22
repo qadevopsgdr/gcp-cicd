@@ -63,6 +63,9 @@ jobs:
       with:
         fetch-depth: 0
 
+    - name: Add SonarScanner to PATH
+      run: echo "/opt/sonar-scanner/bin" >> $GITHUB_PATH
+
     - name: SonarQube Scan (local scanner)
       run: |
         sonar-scanner \
