@@ -18,7 +18,7 @@ EXPOSE 3000
 
 # Health check — optional endpoint
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD curl -f http://192.168.3.84:3000/ || exit 1
+  CMD curl -f http://localhost:3000/ || exit 1
 
 # Start the app
 CMD ["npm", "start"]
