@@ -2,7 +2,7 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main" ]  # Triggers pipeline on any commit to main
 
 env:
   SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -63,16 +63,13 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Add SonarScanner to PATH
-      run: echo "/opt/sonar-scanner/bin" >> $GITHUB_PATH
-
-    - name: SonarQube Scan (local scanner)
-      run: |
-        sonar-scanner \
-          -Dsonar.projectKey=nodejs-cicd-project \
-          -Dsonar.sources=. \
-          -Dsonar.host.url=${{ env.SONAR_HOST_URL }} \
-          -Dsonar.login=${{ env.SONAR_TOKEN }}
+    - name: SonarQube Scan
+      uses: sonarsource/sonarqube-scan-action@master
+      with:
+        projectBaseDir: .
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
 
     - name: SonarQube Quality Gate
       uses: sonarsource/sonarqube-quality-gate-action@master
