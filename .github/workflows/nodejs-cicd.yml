@@ -2,7 +2,7 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ "main" ]  # Triggers pipeline on any commit to main
+    branches: [ "test" ]  # Triggers pipeline on any commit to main
 
 env:
   SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -12,7 +12,7 @@ env:
 
 jobs:
   compile:
-    runs-on: self-hosted-2
+    runs-on: self-hosted
     steps:
     - uses: actions/checkout@v4
     - uses: actions/setup-node@v4
@@ -22,7 +22,7 @@ jobs:
       run: npm ci
 
   security-check:
-    runs-on: self-hosted-2
+    runs-on: self-hosted
     needs: compile
     steps:
     - uses: actions/checkout@v4
@@ -43,7 +43,7 @@ jobs:
           --report-path=/app/gitleaks-report.json
 
   test:
-    runs-on: self-hosted-2
+    runs-on: self-hosted
     needs: security-check
     steps:
     - uses: actions/checkout@v4
@@ -56,7 +56,7 @@ jobs:
       run: npm test
 
   sonar_scan:
-    runs-on: self-hosted-2
+    runs-on: self-hosted
     needs: test
     steps:
     - uses: actions/checkout@v4
@@ -86,7 +86,7 @@ jobs:
         SONAR_HOST_URL: ${{ vars.SONAR_HOST_URL }}
 
   docker_build_and_push:
-    runs-on: self-hosted-2
+    runs-on: self-hosted
     needs: sonar_scan
     steps:
     - uses: actions/checkout@v4
