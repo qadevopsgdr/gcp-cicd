@@ -66,9 +66,9 @@ jobs:
       - name: Set SONAR_USER_HOME
         run: echo "SONAR_USER_HOME=$HOME/.sonar" >> $GITHUB_ENV
 
-      - name: Run SonarQube CLI Scanner
+      - name: Run SonarQube CLI Scanner (Native)
         run: |
-          sonar-scanner \
+          /opt/sonar-scanner/bin/sonar-scanner \
             -Dsonar.projectKey=nodejs-ci-cd-app \
             -Dsonar.sources=. \
             -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
