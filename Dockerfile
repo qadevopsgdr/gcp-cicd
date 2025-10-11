@@ -16,9 +16,9 @@ COPY . .
 # Expose app port
 EXPOSE 3000
 
-# Health check — uses /healthz endpoint
+# Health check — using wget instead of curl
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD curl -f http://localhost:3000/healthz || exit 1
+  CMD wget --spider --quiet http://localhost:3000/healthz || exit 1
 
 # Start the app
 CMD ["npm", "start"]
