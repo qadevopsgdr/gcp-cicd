@@ -69,8 +69,14 @@ jobs:
       - name: Force System Node.js
         run: echo "SONAR_SCANNER_USE_SYSTEM_NODE=true" >> $GITHUB_ENV
 
+      - name: Explicitly set SONAR_NODEJS_EXECUTABLE
+        run: echo "SONAR_NODEJS_EXECUTABLE=$(which node)" >> $GITHUB_ENV
+
       - name: Ensure Node.js is in PATH
         run: echo "$(dirname $(which node))" >> $GITHUB_PATH
+
+      - name: Check Node.js Version
+        run: node -v
 
       - name: SonarQube Scan
         uses: sonarsource/sonarqube-scan-action@v2.0.0
