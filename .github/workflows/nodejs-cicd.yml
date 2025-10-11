@@ -66,25 +66,14 @@ jobs:
       - name: Set SONAR_USER_HOME
         run: echo "SONAR_USER_HOME=$HOME/.sonar" >> $GITHUB_ENV
 
-      - name: Force System Node.js
-        run: echo "SONAR_SCANNER_USE_SYSTEM_NODE=true" >> $GITHUB_ENV
-
-      - name: Explicitly set SONAR_NODEJS_EXECUTABLE
-        run: echo "SONAR_NODEJS_EXECUTABLE=$(which node)" >> $GITHUB_ENV
-
-      - name: Ensure Node.js is in PATH
-        run: echo "$(dirname $(which node))" >> $GITHUB_PATH
-
-      - name: Check Node.js Version
-        run: node -v
-
-      - name: SonarQube Scan
-        uses: sonarsource/sonarqube-scan-action@v2.0.0
-        with:
-          projectBaseDir: .
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      - name: Run SonarQube CLI Scanner
+        run: |
+          sonar-scanner \
+            -Dsonar.projectKey=nodejs-ci-cd-app \
+            -Dsonar.sources=. \
+            -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
+            -Dsonar.login=${{ secrets.SONAR_TOKEN }} \
+            -Dsonar.nodejs.executable=$(which node)
 
       - name: Install jq locally
         run: |
