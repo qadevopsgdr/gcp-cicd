@@ -2,7 +2,7 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ "test" ]  # Triggers pipeline on any commit to main
+    branches: [ "main" ]  # Triggers pipeline on any commit to main
 
 env:
   SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
