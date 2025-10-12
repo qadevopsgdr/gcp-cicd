@@ -101,15 +101,23 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
+      - name: Read and bump version
+        id: versioning
+        run: |
+          CURRENT_VERSION=$(cat .version | sed 's/v//')
+          NEXT_VERSION=$((CURRENT_VERSION + 1))
+          VERSION_TAG="v${NEXT_VERSION}"
+          echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
+          echo "v${NEXT_VERSION}" > .version
+
       - name: Build Docker Image and extract ID
         id: build_image
         run: |
           IMAGE_ID=$(docker build -q -t $DOCKER_USERNAME/nodejs-cicd-app:latest .)
           SHORT_ID=$(echo $IMAGE_ID | cut -c1-5)
-          VERSION_TAG="latest:v1-$SHORT_ID"
-          echo "IMAGE_ID=$IMAGE_ID" >> $GITHUB_ENV
-          echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
-          docker tag $IMAGE_ID $DOCKER_USERNAME/nodejs-cicd-app:$VERSION_TAG
+          FINAL_TAG="latest:${VERSION_TAG}-${SHORT_ID}"
+          echo "FINAL_TAG=$FINAL_TAG" >> $GITHUB_ENV
+          docker tag $IMAGE_ID $DOCKER_USERNAME/nodejs-cicd-app:$FINAL_TAG
 
       - name: Trivy Image Scan
         run: |
@@ -120,7 +128,15 @@ jobs:
       - name: Push Docker Images
         run: |
           docker push $DOCKER_USERNAME/nodejs-cicd-app:latest
-          docker push $DOCKER_USERNAME/nodejs-cicd-app:$VERSION_TAG
+          docker push $DOCKER_USERNAME/nodejs-cicd-app:$FINAL_TAG
+
+      - name: Commit updated version file
+        run: |
+          git config user.name "CI Bot"
+          git config user.email "ci-bot@example.com"
+          git add .version
+          git commit -m "Bump version to $VERSION_TAG"
+          git push
 
   deploy_to_local:
     runs-on: self-hosted
