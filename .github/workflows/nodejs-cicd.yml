@@ -63,6 +63,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Cache SonarQube scanner data
+        uses: actions/cache@v3
+        with:
+          path: ~/.sonar/cache
+          key: sonar-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            sonar-${{ runner.os }}-
+
       - name: Set SONAR_USER_HOME
         run: echo "SONAR_USER_HOME=$HOME/.sonar" >> $GITHUB_ENV
 
@@ -114,7 +122,7 @@ jobs:
         id: build_image
         run: |
           IMAGE_ID=$(docker build -q -t $DOCKER_USERNAME/nodejs-cicd-app:latest .)
-          SHORT_ID=$(echo $IMAGE_ID | cut -d ':' -f2 | cut -c1-7)
+          SHORT_ID=$(echo $IMAGE_ID | cut -d ':' -f2 | cut -c1-5)
           FINAL_TAG="latest-${VERSION_TAG}-${SHORT_ID}"
           echo "FINAL_TAG=$FINAL_TAG" >> $GITHUB_ENV
           docker tag $IMAGE_ID $DOCKER_USERNAME/nodejs-cicd-app:$FINAL_TAG
