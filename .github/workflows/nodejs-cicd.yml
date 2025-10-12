@@ -114,7 +114,7 @@ jobs:
         id: build_image
         run: |
           IMAGE_ID=$(docker build -q -t $DOCKER_USERNAME/nodejs-cicd-app:latest .)
-          SHORT_ID=$(echo $IMAGE_ID | cut -c1-5)
+          SHORT_ID=$(echo $IMAGE_ID | cut -d ':' -f2 | cut -c1-7)
           FINAL_TAG="latest-${VERSION_TAG}-${SHORT_ID}"
           echo "FINAL_TAG=$FINAL_TAG" >> $GITHUB_ENV
           docker tag $IMAGE_ID $DOCKER_USERNAME/nodejs-cicd-app:$FINAL_TAG
