@@ -1,3 +1,4 @@
+
 name: CI/CD Pipeline
 
 on:
@@ -63,14 +64,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Cache SonarQube scanner data
-        uses: actions/cache@v3
-        with:
-          path: ~/.sonar/cache
-          key: sonar-${{ runner.os }}-${{ github.sha }}
-          restore-keys: |
-            sonar-${{ runner.os }}-
-
       - name: Set SONAR_USER_HOME
         run: echo "SONAR_USER_HOME=$HOME/.sonar" >> $GITHUB_ENV
 
@@ -109,23 +102,10 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Read and bump version
-        id: versioning
+      - name: Build Docker Image (with version tag)
         run: |
-          CURRENT_VERSION=$(cat .version | sed 's/v//')
-          NEXT_VERSION=$((CURRENT_VERSION + 1))
-          VERSION_TAG="v${NEXT_VERSION}"
-          echo "VERSION_TAG=$VERSION_TAG" >> $GITHUB_ENV
-          echo "v${NEXT_VERSION}" > .version
-
-      - name: Build Docker Image and extract ID
-        id: build_image
-        run: |
-          IMAGE_ID=$(docker build -q -t $DOCKER_USERNAME/nodejs-cicd-app:latest .)
-          SHORT_ID=$(echo $IMAGE_ID | cut -d ':' -f2 | cut -c1-5)
-          FINAL_TAG="latest-${VERSION_TAG}-${SHORT_ID}"
-          echo "FINAL_TAG=$FINAL_TAG" >> $GITHUB_ENV
-          docker tag $IMAGE_ID $DOCKER_USERNAME/nodejs-cicd-app:$FINAL_TAG
+          docker build -t $DOCKER_USERNAME/nodejs-cicd-app:latest .
+          docker tag $DOCKER_USERNAME/nodejs-cicd-app:latest $DOCKER_USERNAME/nodejs-cicd-app:${{ github.sha }}
 
       - name: Trivy Image Scan
         run: |
@@ -133,18 +113,10 @@ jobs:
             -v /var/run/docker.sock:/var/run/docker.sock \
             aquasec/trivy image $DOCKER_USERNAME/nodejs-cicd-app:latest
 
-      - name: Push Docker Images
+      - name: Push Docker Image
         run: |
           docker push $DOCKER_USERNAME/nodejs-cicd-app:latest
-          docker push $DOCKER_USERNAME/nodejs-cicd-app:$FINAL_TAG
-
-      - name: Commit updated version file
-        run: |
-          git config user.name "CI Bot"
-          git config user.email "ci-bot@example.com"
-          git add .version
-          git commit -m "Bump version to $VERSION_TAG"
-          git push
+          docker push $DOCKER_USERNAME/nodejs-cicd-app:${{ github.sha }}
 
   deploy_to_local:
     runs-on: self-hosted
