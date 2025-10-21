@@ -43,43 +43,70 @@ jobs:
 
       - name: Build and Tag Docker Image
         run: |
-          docker build -t gcr.io/$GCP_PROJECT_ID/nodejs-cicd-app:latest .
-          docker tag gcr.io/$GCP_PROJECT_ID/nodejs-cicd-app:latest gcr.io/$GCP_PROJECT_ID/nodejs-cicd-app:${{ github.sha }}
+          echo "${{ secrets.ENV_FILE }}" > .env
+          set -a
+          source .env
+          set +a
+
+          IMAGE_NAME="gcr.io/$GCP_PROJECT_ID/nodejs-cicd-app"
+          
+          docker build -t $IMAGE_NAME:latest .
+          docker tag $IMAGE_NAME:latest $IMAGE_NAME:${{ github.sha }}
 
       - name: Trivy Image Scan
-        run: |
-          docker run --rm \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            aquasec/trivy image gcr.io/$GCP_PROJECT_ID/nodejs-cicd-app:latest
-
-      - name: Push Docker Image to GCR
-        run: |
-          docker push gcr.io/$GCP_PROJECT_ID/nodejs-cicd-app:latest
-          docker push gcr.io/$GCP_PROJECT_ID/nodejs-cicd-app:${{ github.sha }}
-
-  deploy_to_local:
-    runs-on: self-hosted
-    needs: docker_build_and_push
-    steps:
-      - name: Load .env from Secrets
         run: |
           echo "${{ secrets.ENV_FILE }}" > .env
           set -a
           source .env
           set +a
 
+          IMAGE_NAME="gcr.io/$GCP_PROJECT_ID/nodejs-cicd-app"
+
+          docker run --rm \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy image $IMAGE_NAME:latest
+
+      - name: Push Docker Image to GCR
+        run: |
+          echo "${{ secrets.ENV_FILE }}" > .env
+          set -a
+          source .env
+          set +a
+
+          IMAGE_NAME="gcr.io/$GCP_PROJECT_ID/nodejs-cicd-app"
+
+          docker push $IMAGE_NAME:latest
+          docker push $IMAGE_NAME:${{ github.sha }}
+
+  deploy_to_local:
+    runs-on: self-hosted
+    needs: docker_build_and_push
+    steps:
       - name: Stop Existing Container (if any)
         run: |
           docker ps -q --filter "name=nodeapp" | grep -q . && \
           docker stop nodeapp && docker rm nodeapp || echo "No container to stop"
 
-      - name: Pull Latest Docker Image from GCR
+      - name: Pull Latest Docker Image
         run: |
-          docker pull gcr.io/$GCP_PROJECT_ID/nodejs-cicd-app:latest
+          echo "${{ secrets.ENV_FILE }}" > .env
+          set -a
+          source .env
+          set +a
 
-      - name: Run New Container
+          IMAGE_NAME="gcr.io/$GCP_PROJECT_ID/nodejs-cicd-app"
+          docker pull $IMAGE_NAME:latest
+
+      - name: Run New Container with Restart Policy
         run: |
+          echo "${{ secrets.ENV_FILE }}" > .env
+          set -a
+          source .env
+          set +a
+
+          IMAGE_NAME="gcr.io/$GCP_PROJECT_ID/nodejs-cicd-app"
+
           docker run -d -p 80:3000 \
             --restart unless-stopped \
             --name nodeapp \
-            gcr.io/$GCP_PROJECT_ID/nodejs-cicd-app:latest
+            $IMAGE_NAME:latest
