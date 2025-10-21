@@ -34,67 +34,52 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Login to Docker Hub and Build Image
+      - name: Load .env from Secrets
         run: |
-          # Write .env from secret
           echo "${{ secrets.ENV_FILE }}" > .env
-          # Export variables
           set -a
           source .env
           set +a
 
-          echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-
-          docker build -t $DOCKER_USERNAME/nodejs-cicd-app:latest .
-          docker tag $DOCKER_USERNAME/nodejs-cicd-app:latest $DOCKER_USERNAME/nodejs-cicd-app:${{ github.sha }}
+      - name: Build and Tag Docker Image
+        run: |
+          docker build -t gcr.io/$GCP_PROJECT_ID/nodejs-cicd-app:latest .
+          docker tag gcr.io/$GCP_PROJECT_ID/nodejs-cicd-app:latest gcr.io/$GCP_PROJECT_ID/nodejs-cicd-app:${{ github.sha }}
 
       - name: Trivy Image Scan
         run: |
-          echo "${{ secrets.ENV_FILE }}" > .env
-          set -a
-          source .env
-          set +a
-
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
-            aquasec/trivy image $DOCKER_USERNAME/nodejs-cicd-app:latest
+            aquasec/trivy image gcr.io/$GCP_PROJECT_ID/nodejs-cicd-app:latest
 
-      - name: Push Docker Image
+      - name: Push Docker Image to GCR
         run: |
-          echo "${{ secrets.ENV_FILE }}" > .env
-          set -a
-          source .env
-          set +a
-
-          docker push $DOCKER_USERNAME/nodejs-cicd-app:latest
-          docker push $DOCKER_USERNAME/nodejs-cicd-app:${{ github.sha }}
+          docker push gcr.io/$GCP_PROJECT_ID/nodejs-cicd-app:latest
+          docker push gcr.io/$GCP_PROJECT_ID/nodejs-cicd-app:${{ github.sha }}
 
   deploy_to_local:
     runs-on: self-hosted
     needs: docker_build_and_push
     steps:
+      - name: Load .env from Secrets
+        run: |
+          echo "${{ secrets.ENV_FILE }}" > .env
+          set -a
+          source .env
+          set +a
+
       - name: Stop Existing Container (if any)
         run: |
-          docker ps -q --filter "name=nodejs-cicd-app" | grep -q . && \
-          docker stop nodejs-cicd-app && docker rm nodejs-cicd-app:latest || echo "No container to stop"
+          docker ps -q --filter "name=nodeapp" | grep -q . && \
+          docker stop nodeapp && docker rm nodeapp || echo "No container to stop"
 
-      - name: Pull Latest Docker Image
+      - name: Pull Latest Docker Image from GCR
         run: |
-          echo "${{ secrets.ENV_FILE }}" > .env
-          set -a
-          source .env
-          set +a
+          docker pull gcr.io/$GCP_PROJECT_ID/nodejs-cicd-app:latest
 
-          docker pull $DOCKER_USERNAME/nodejs-cicd-app:latest
-
-      - name: Run New Container with Restart Policy
+      - name: Run New Container
         run: |
-          echo "${{ secrets.ENV_FILE }}" > .env
-          set -a
-          source .env
-          set +a
-
           docker run -d -p 80:3000 \
             --restart unless-stopped \
             --name nodeapp \
-            $DOCKER_USERNAME/nodejs-cicd-app:latest
+            gcr.io/$GCP_PROJECT_ID/nodejs-cicd-app:latest
