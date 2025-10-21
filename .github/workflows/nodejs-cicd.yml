@@ -34,24 +34,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Create .env file from GitHub Secret
+        run: |
+          echo "${{ secrets.ENV_FILE }}" > .env
+
+      - name: Load .env variables
+        run: |
+          set -a
+          source .env
+          set +a
+
       - name: Log in to Docker Hub
-        run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+        run: echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
 
       - name: Build Docker Image
         run: |
-          docker build -t ${{ secrets.DOCKER_USERNAME }}/nodejs-cicd-app:latest .
-          docker tag ${{ secrets.DOCKER_USERNAME }}/nodejs-cicd-app:latest ${{ secrets.DOCKER_USERNAME }}/nodejs-cicd-app:${{ github.sha }}
+          docker build -t $DOCKER_USERNAME/nodejs-cicd-app:latest .
+          docker tag $DOCKER_USERNAME/nodejs-cicd-app:latest $DOCKER_USERNAME/nodejs-cicd-app:${{ github.sha }}
 
       - name: Trivy Image Scan
         run: |
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
-            aquasec/trivy image ${{ secrets.DOCKER_USERNAME }}/nodejs-cicd-app:latest
+            aquasec/trivy image $DOCKER_USERNAME/nodejs-cicd-app:latest
 
       - name: Push Docker Image
         run: |
-          docker push ${{ secrets.DOCKER_USERNAME }}/nodejs-cicd-app:latest
-          docker push ${{ secrets.DOCKER_USERNAME }}/nodejs-cicd-app:${{ github.sha }}
+          docker push $DOCKER_USERNAME/nodejs-cicd-app:latest
+          docker push $DOCKER_USERNAME/nodejs-cicd-app:${{ github.sha }}
 
   deploy_to_local:
     runs-on: self-hosted
@@ -63,11 +73,11 @@ jobs:
           docker stop nodejs-cicd-app && docker rm nodejs-cicd-app || echo "No container to stop"
 
       - name: Pull Latest Docker Image
-        run: docker pull ${{ secrets.DOCKER_USERNAME }}/nodejs-cicd-app:latest
+        run: docker pull $DOCKER_USERNAME/nodejs-cicd-app:latest
 
       - name: Run New Container with Restart Policy
         run: |
           docker run -d -p 80:3000 \
             --restart unless-stopped \
-            --name nodeapp \
-            ${{ secrets.DOCKER_USERNAME }}/nodejs-cicd-app:latest
+            --name nodejs-cicd-app \
+            $DOCKER_USERNAME/nodejs-cicd-app:latest
