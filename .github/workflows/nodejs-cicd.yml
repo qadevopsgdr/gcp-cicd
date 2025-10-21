@@ -34,32 +34,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create .env file from GitHub Secret
+      - name: Login to Docker Hub and Build Image
         run: |
+          # Write .env from secret
           echo "${{ secrets.ENV_FILE }}" > .env
-
-      - name: Load .env variables
-        run: |
+          # Export variables
           set -a
           source .env
           set +a
 
-      - name: Log in to Docker Hub
-        run: echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+          echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
 
-      - name: Build Docker Image
-        run: |
           docker build -t $DOCKER_USERNAME/nodejs-cicd-app:latest .
           docker tag $DOCKER_USERNAME/nodejs-cicd-app:latest $DOCKER_USERNAME/nodejs-cicd-app:${{ github.sha }}
 
       - name: Trivy Image Scan
         run: |
+          echo "${{ secrets.ENV_FILE }}" > .env
+          set -a
+          source .env
+          set +a
+
           docker run --rm \
             -v /var/run/docker.sock:/var/run/docker.sock \
             aquasec/trivy image $DOCKER_USERNAME/nodejs-cicd-app:latest
 
       - name: Push Docker Image
         run: |
+          echo "${{ secrets.ENV_FILE }}" > .env
+          set -a
+          source .env
+          set +a
+
           docker push $DOCKER_USERNAME/nodejs-cicd-app:latest
           docker push $DOCKER_USERNAME/nodejs-cicd-app:${{ github.sha }}
 
@@ -70,14 +76,25 @@ jobs:
       - name: Stop Existing Container (if any)
         run: |
           docker ps -q --filter "name=nodejs-cicd-app" | grep -q . && \
-          docker stop nodejs-cicd-app && docker rm nodejs-cicd-app || echo "No container to stop"
+          docker stop nodejs-cicd-app && docker rm nodejs-cicd-app:latest || echo "No container to stop"
 
       - name: Pull Latest Docker Image
-        run: docker pull $DOCKER_USERNAME/nodejs-cicd-app:latest
+        run: |
+          echo "${{ secrets.ENV_FILE }}" > .env
+          set -a
+          source .env
+          set +a
+
+          docker pull $DOCKER_USERNAME/nodejs-cicd-app:latest
 
       - name: Run New Container with Restart Policy
         run: |
+          echo "${{ secrets.ENV_FILE }}" > .env
+          set -a
+          source .env
+          set +a
+
           docker run -d -p 80:3000 \
             --restart unless-stopped \
-            --name nodejs-cicd-app \
+            --name nodeapp \
             $DOCKER_USERNAME/nodejs-cicd-app:latest
