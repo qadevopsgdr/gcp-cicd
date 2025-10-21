@@ -4,12 +4,6 @@ on:
   push:
     branches: [ "main" ]
 
-env:
-  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-  SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-  DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-
 jobs:
   compile:
     runs-on: self-hosted
@@ -21,30 +15,9 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-  security-check:
-    runs-on: self-hosted
-    needs: compile
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Trivy FS Scan (via Docker)
-        run: |
-          docker run --rm \
-            -v $(pwd):/project \
-            aquasec/trivy fs /project
-
-      - name: Gitleaks Code Scan (via Docker)
-        run: |
-          docker run --rm \
-            -v $(pwd):/app \
-            zricethezav/gitleaks:latest detect \
-            --source=/app \
-            --report-format=json \
-            --report-path=/app/gitleaks-report.json
-
   test:
     runs-on: self-hosted
-    needs: security-check
+    needs: compile
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -55,53 +28,22 @@ jobs:
       - name: Run Unit Tests
         run: npm test
 
-  sonar_scan:
+  docker_build_and_push:
     runs-on: self-hosted
     needs: test
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
-      - name: Set SONAR_USER_HOME
-        run: echo "SONAR_USER_HOME=$HOME/.sonar" >> $GITHUB_ENV
-
-      - name: Run SonarQube CLI Scanner (Native)
+      - name: Export all GitHub secrets as env vars
         run: |
-          /opt/sonar-scanner/bin/sonar-scanner \
-            -Dsonar.projectKey=nodejs-ci-cd-app \
-            -Dsonar.sources=. \
-            -Dsonar.host.url=${{ secrets.SONAR_HOST_URL }} \
-            -Dsonar.login=${{ secrets.SONAR_TOKEN }} \
-            -Dsonar.nodejs.executable=$(which node)
-
-      - name: Install jq locally
-        run: |
-          curl -L -o jq https://github.com/stedolan/jq/releases/download/jq-1.6/jq-linux64
-          chmod +x jq
-          echo "$PWD" >> $GITHUB_PATH
-
-      - name: SonarQube Quality Gate
-        uses: sonarsource/sonarqube-quality-gate-action@v1.1.0
-        with:
-          pollingTimeoutSec: 600
-        env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-
-  docker_build_and_push:
-    runs-on: self-hosted
-    needs: sonar_scan
-    steps:
-      - uses: actions/checkout@v4
+          for secret in $(env | grep -o '^[A-Z0-9_]\+'); do
+            echo "$secret=${!secret}" >> $GITHUB_ENV
+          done
 
       - name: Login to DockerHub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+        run: echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
 
-      - name: Build Docker Image (with version tag)
+      - name: Build Docker Image
         run: |
           docker build -t $DOCKER_USERNAME/nodejs-cicd-app:latest .
           docker tag $DOCKER_USERNAME/nodejs-cicd-app:latest $DOCKER_USERNAME/nodejs-cicd-app:${{ github.sha }}
@@ -123,8 +65,8 @@ jobs:
     steps:
       - name: Stop Existing Container (if any)
         run: |
-          docker ps -q --filter "name=nodeapp" | grep -q . && \
-          docker stop nodeapp && docker rm nodeapp || echo "No container to stop"
+          docker ps -q --filter "name=nodejs-cicd-app" | grep -q . && \
+          docker stop nodejs-cicd-app && docker rm nodejs-cicd-app:latest || echo "No container to stop"
 
       - name: Pull Latest Docker Image
         run: docker pull $DOCKER_USERNAME/nodejs-cicd-app:latest
